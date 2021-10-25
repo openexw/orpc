@@ -6,8 +6,6 @@ import (
 	"io"
 )
 
-type Header [HeaderLen]byte
-
 //type iHeader interface {
 //	// CheckMagicNumber 校验 magicNumber，使用 1byte 存储
 //	CheckMagicNumber() bool
@@ -32,6 +30,21 @@ type Header [HeaderLen]byte
 //	// SetSerializeType 设置序列化类型
 //	SetSerializeType(serializeType SerializeType)
 //}
+
+// Header 是 Message 的头部信息
+// Format：
+// |-------------|---------|--------------|--------------|---------------|-------|
+// | MagicNumber | Version | MessageType  | CompressType | SerializeType |  Seq  |
+// |-------------|---------|--------------|--------------|---------------|-------|
+// |     1byte   |  1byte  |    1byte     |      1byte   |       1byte   | 8byte |
+// |-------------|---------|--------------|--------------|---------------|-------|
+// MagicNumber：用于校验
+// Version：版本号
+// MessageType：消息类型，分为 Request 和 Response
+// CompressType：压缩类型，可为 Note 和 Gzip
+// SerializeType：序列化类型，现支持 Raw、JSON、Msgpack、Gob
+// Seq：序列号，存储的是一个 8 位的整数
+type Header [HeaderLen]byte
 
 // SerializeType 序列化类型，默认支持 Raw、Gob、JSON、Msgpack
 type SerializeType byte
@@ -99,16 +112,24 @@ func (h *Header) SetSeq(seq uint64) {
 
 // Message 传输的消息格式
 // format:
+// |--------|---------|------------------|--------------------|------------|---------------|
+// | header | dataLen | serviceMethodLen |    serviceMethod   | payloadLen |    payload    |
+// |--------|---------|------------------|--------------------|------------|---------------|
+// | 13byte |  4byte  |       4byte      | len(serviceMethod) |    4byte   |  len(payload) |
+// |--------|---------|------------------|--------------------|------------|---------------|
+//
+// data = serviceMethodLen + serviceMethod + payloadLen + payload
 type Message struct {
 	*Header
 	ServiceMethod string //格式形如：Service.Method
-	Payload       []byte
+	Payload       []byte // 真实的内容载体
 	data          []byte
 }
 
 // NewMessage 实例化一个 message 对象
 func NewMessage() *Message {
-	header := Header([12]byte{})
+	header := Header([HeaderLen]byte{})
+	header[0] = magicNumber
 	return &Message{
 		Header: &header,
 	}
@@ -117,23 +138,25 @@ func NewMessage() *Message {
 func (m *Message) Encode() []byte {
 	smLen := len(m.ServiceMethod) // "Service.Method" 的长度
 	// 			header + dataLen + (sml+ServiceMethod) + payloadLen + payload
-	totalLen := HeaderLen + ServiceMethodLen + smLen + PayloadLen + len(m.Payload)
-	data := make([]byte, 512)
+	dataLen := ServiceMethodLen + smLen + PayloadLen + len(m.Payload)
+	data := make([]byte, 4096)
 	// step1: 写入 header
 	copy(data, m.Header[:])
 
 	// step2：写入 DataLen
-	binary.BigEndian.PutUint32(data[12:16], uint32(totalLen))
+	binary.BigEndian.PutUint32(data[HeaderLen:HeaderLen+DataLen], uint32(dataLen))
 
 	// step3：写入 sml
 	// 写入 ServiceMethod 的长度
-	binary.BigEndian.PutUint32(data[16:20], uint32(smLen))
+	serviceMethodLenStart := HeaderLen + DataLen
+	binary.BigEndian.PutUint32(data[serviceMethodLenStart:serviceMethodLenStart+ServiceMethodLen], uint32(smLen))
 	// 写入 ServiceMethod 的值
-	copy(data[20:20+smLen], m.ServiceMethod)
+	serviceMethodStart := serviceMethodLenStart + ServiceMethodLen
+	copy(data[serviceMethodStart:serviceMethodStart+smLen], m.ServiceMethod)
 
 	//step4：写入 payload
 	payloadLen := len(m.Payload)
-	payloadStart := HeaderLen + ServiceMethodLen + smLen
+	payloadStart := serviceMethodStart + smLen
 	// 写入长度
 	binary.BigEndian.PutUint32(data[payloadStart:payloadStart+PayloadLen], uint32(payloadLen))
 	// 写入数据
@@ -153,7 +176,7 @@ func (m *Message) Decode(r io.Reader) error {
 	}
 	// step2: 获取 data
 	// 获取 dataLen
-	dataLenByte := make([]byte, 4)
+	dataLenByte := make([]byte, DataLen)
 	_, err = io.ReadFull(r, dataLenByte)
 	if err != nil {
 		return err

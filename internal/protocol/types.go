@@ -7,7 +7,9 @@ import (
 
 const (
 	// HeaderLen Message header length
-	HeaderLen = 12
+	HeaderLen = 13
+	// DataLen Message DataLen length
+	DataLen = 4
 	// PayloadLen Message Payload length
 	PayloadLen = 4
 	// ServiceMethodLen Message ServiceMethod length
