@@ -58,10 +58,10 @@
 说明：
 - MagicNumber：用于校验
 - Version：版本号
-- MessageType：消息类型，分为 Request 和 Response
-- CompressType：压缩类型，可为 Note 和 Gzip
-- SerializeType：序列化类型，现支持 Raw、JSON、Msgpack、Gob
-- Seq：序列号，存储的是一个 32 位的无符号整型
+- MessageType：消息类型，分为 `Request` 和 `Response`
+- CompressType：压缩类型，可为 `None` 和 `Gzip`
+- SerializeType：序列化类型，现支持 `Raw`、`JSON`、`Msgpack`、`Gob`
+- Seq：序列号，存储的是一个 `32` 位的无符号整型
 
 ## 通信
 ## 启动
