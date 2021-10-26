@@ -6,13 +6,14 @@
       - 随机
     - RPC 协议
       - 组成
-        - header [5]byte
+        - header [13]byte
           - MagicNumber
           - Version
           - MessageType
           - SerializeType
           - CompressType 
-        - body
+          - Seq
+        - Payload
       - 传输协议
         - TCP
         - HTTP / HTTPS
@@ -21,7 +22,7 @@
         - protobuf
         - json
         - gob
-        - MsgPack
+        - Msgpack
         - Raw -> 原始格式 []byte
         - thrift
     - 监控
@@ -37,29 +38,35 @@
 ## 架构图
 ![Apm4KtBSHG8Jx53](https://i.loli.net/2021/10/22/Apm4KtBSHG8Jx53.png)
 
-
-## 设计
-- 使用 `encoding/gob` 实现消息的编码（序列化和反序列化操作）
+## 消息体
+### Message 协议
+```
+|--------|---------|------------------|--------------------|------------|---------------|
+| header | dataLen | serviceMethodLen |    serviceMethod   | payloadLen |    payload    |
+|--------|---------|------------------|--------------------|------------|---------------|
+| 13byte |  4byte  |       4byte      | len(serviceMethod) |    4byte   |  len(payload) |
+|--------|---------|------------------|--------------------|------------|---------------|
+```
+### Header 格式
+```
+|-------------|---------|--------------|--------------|---------------|-------|
+| MagicNumber | Version | MessageType  | CompressType | SerializeType |  Seq  |
+|-------------|---------|--------------|--------------|---------------|-------|
+|     1byte   |  1byte  |    1byte     |      1byte   |       1byte   | 8byte |
+|-------------|---------|--------------|--------------|---------------|-------|
+```
+说明：
+- MagicNumber：用于校验
+- Version：版本号
+- MessageType：消息类型，分为 Request 和 Response
+- CompressType：压缩类型，可为 Note 和 Gzip
+- SerializeType：序列化类型，现支持 Raw、JSON、Msgpack、Gob
+- Seq：序列号，存储的是一个 32 位的无符号整型
 
 ## 通信
-一次 TCP 通信，至少需要三部分类容，Options、Header、Body，结构如下：
-![TUDuqpa2GoONIxP](https://i.loli.net/2021/10/20/TUDuqpa2GoONIxP.png)
-
-- options 采用固定格式 json 存储，标识本次请求的唯一序列号、编码类型（god、json等）
-- header 和 body 格式如上交替发送，可以发送多个 header 和 body 的组合
-
-options 的结构体如下：
-
-```go
-type Options struct {
-	Seq       int        // 标识本次请求的唯一序列号
-	CodecType codec.Type // 请求的类型
-}
-```
-
 ## 启动
 ```go
 s := orpc.NewServer()
-s.Register("User", new(User), "")
+s.Register("Foo.sum")
 s.Server("tcp", ":8990")
 ```

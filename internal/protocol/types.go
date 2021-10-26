@@ -5,6 +5,7 @@ import (
 	"github.com/openexw/orpc/internal/codec"
 )
 
+// 定义 Message 协议长度
 const (
 	// HeaderLen Message header length
 	HeaderLen = 13
