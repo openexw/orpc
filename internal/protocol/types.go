@@ -40,7 +40,7 @@ var Codecs = map[SerializeType]codec.Codec{
 	//Protobuf:
 }
 
-var errCodecExist = errors.New("SerializeType is exist")
+var errCodecExist = errors.New("serializeType is exist")
 
 // RegisterCodec 注册自定义的 codec
 func RegisterCodec(t SerializeType, cc codec.Codec) error {

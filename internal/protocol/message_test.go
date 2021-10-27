@@ -2,28 +2,10 @@ package protocol
 
 import (
 	"bytes"
+	"github.com/openexw/orpc/testdata"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
-
-var (
-	str           = []byte("Hello world")
-	serviceMethod = "Foo.Sum"
-)
-
-func buildMessageData() []byte {
-
-	m := NewMessage()
-	m.ServiceMethod = serviceMethod
-	m.SetVersion(1)
-	m.SetMessageType(Request)
-	m.SetSeq(uint64(1))
-	m.SetSerializeType(Msgpack)
-	m.CheckMagicNumber()
-	m.SetCompressType(Gzip)
-	m.Payload = str
-	return m.Encode()
-}
 
 func TestHeader_header(t *testing.T) {
 	mType := Response
@@ -48,7 +30,7 @@ func TestHeader_header(t *testing.T) {
 }
 
 func TestMessage_Decode(t *testing.T) {
-	encode := buildMessageData()
+	encode := testdata.BuildMessageData()
 	buf := bytes.NewBuffer(encode)
 
 	m := NewMessage()
@@ -57,6 +39,6 @@ func TestMessage_Decode(t *testing.T) {
 		t.Errorf("Decode err: %v", err)
 		return
 	}
-	assert.Equal(t, str, m.Payload)
-	assert.Equal(t, serviceMethod, m.ServiceMethod)
+	assert.Equal(t, testdata.Str, m.Payload)
+	assert.Equal(t, testdata.ServiceMethod, m.ServiceMethod)
 }

@@ -2,7 +2,7 @@ package protocol
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"io"
 )
 
@@ -20,16 +20,18 @@ import (
 //	// SetMessageType 设置消息类型
 //	SetMessageType(messageType MessageType)
 //
-//	// CompressType 获取压缩类型，使用 1byte 存储
-//	CompressType() CompressType
+//	// compressType 获取压缩类型，使用 1byte 存储
+//	compressType() compressType
 //	// SetCompressType 设置压缩类型
-//	SetCompressType(compressType CompressType)
+//	SetCompressType(compressType compressType)
 //
-//	// SerializeType 获取序列化类型，使用 1byte 存储
-//	SerializeType() SerializeType
+//	// serializeType 获取序列化类型，使用 1byte 存储
+//	serializeType() serializeType
 //	// SetSerializeType 设置序列化类型
-//	SetSerializeType(serializeType SerializeType)
+//	SetSerializeType(serializeType serializeType)
 //}
+
+var ErrMagicNumber = errors.New("magic number error")
 
 // Header 是 Message 的头部信息
 // Format：
@@ -126,6 +128,8 @@ type Message struct {
 	data          []byte
 }
 
+// TODO 错误处理
+
 // NewMessage 实例化一个 message 对象
 func NewMessage() *Message {
 	header := Header([HeaderLen]byte{})
@@ -172,7 +176,8 @@ func (m *Message) Decode(r io.Reader) error {
 	}
 	// 校验 MagicNumber
 	if !m.Header.CheckMagicNumber() {
-		return fmt.Errorf("wrong magic number: %v", m.Header[0])
+		//log.Printf("rpc##server message.Decode err:%s", ErrMagicNumber.Error()+"; value:"+string(m.Header[0]))
+		return ErrMagicNumber
 	}
 	// step2: 获取 data
 	// 获取 dataLen
