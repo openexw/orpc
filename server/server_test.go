@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/openexw/orpc/testdata"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -23,4 +24,16 @@ func TestServer_readRequest(t *testing.T) {
 	if request == nil {
 		t.Error("request is nil")
 	}
+}
+
+func TestServer_Register(t *testing.T) {
+	s := NewServer()
+	s.Register(new(testdata.Sum))
+
+	var counter int
+	s.serviceMap.Range(func(key, value interface{}) bool {
+		counter++
+		return true
+	})
+	assert.Equal(t, 1, counter)
 }
