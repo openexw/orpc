@@ -1,11 +1,14 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"log"
 	"reflect"
 	"runtime"
+	"unicode"
+	"unicode/utf8"
 )
 
 var typeOfError = reflect.TypeOf((*error)(nil)).Elem()
@@ -43,18 +46,31 @@ type service struct {
 	typ    reflect.Type           // service 的类型
 }
 
-func newService(rcvr interface{}) *service {
+func newService(rcvr interface{}) (*service, error) {
 	s := new(service)
 	s.typ = reflect.TypeOf(rcvr)
 	s.rcvr = reflect.ValueOf(rcvr)
 
-	// 获取 server name
-	s.name = reflect.Indirect(s.rcvr).Type().Name()
+	// 获取 service name
+	sName := reflect.Indirect(s.rcvr).Type().Name()
+
+	// 判断这个 service 是否存在
+	if sName == "" {
+		errorStr := "rpc##server: newService: no service name for type " + s.typ.String()
+		log.Printf(errorStr)
+		return nil, errors.New(errorStr)
+	}
+	if !isExported(sName) {
+		errorStr := "rpc##server: newService: type " + sName + " is not exported"
+		log.Printf(errorStr)
+		return nil, errors.New(errorStr)
+	}
+	s.name = sName
 
 	// 获取 method
 	//s.method =
 	s.method = s.suitableMethods(s.typ)
-	return s
+	return s, nil
 }
 
 // call 调用 service 中的函数
@@ -128,4 +144,9 @@ func (srv *service) suitableMethods(typ reflect.Type) map[string]*methodType {
 
 func isExportedOrBuiltinType(t reflect.Type) bool {
 	return ast.IsExported(t.Name()) || t.PkgPath() == ""
+}
+
+func isExported(name string) bool {
+	rune, _ := utf8.DecodeRuneInString(name)
+	return unicode.IsUpper(rune)
 }

@@ -9,30 +9,89 @@ import (
 	"log"
 	"net"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 )
 
 var (
-	ErrServerClosed = errors.New("http: Server closed")
+	ErrServerClosed = errors.New("rpc#server: Server closed")
 )
 
-// TODO ADD options add isTrace
-
-type Server struct {
-	ln           net.Listener
+type Option struct {
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	trace        bool // 判断是否开启 trace
+}
+
+type OptionFn func(opts *Option)
+
+type OptionFns []OptionFn
+
+func (fns OptionFns) apply(opt *Option) {
+	for _, fn := range fns {
+		fn(opt)
+	}
+}
+
+// WithReadTimeout can set read timeout
+// read timeout default is 3 second
+func WithReadTimeout(timeout time.Duration) OptionFn {
+	return func(opts *Option) {
+		opts.readTimeout = timeout
+	}
+}
+
+// WithWriteTimeout can set write timeout
+// write timeout default is 3 second
+func WithWriteTimeout(timeout time.Duration) OptionFn {
+	return func(opts *Option) {
+		opts.writeTimeout = timeout
+	}
+}
+
+// WithTrace If you want open debug mode, It can do this
+// trace default is closed
+func WithTrace(isTrace bool) OptionFn {
+	return func(opts *Option) {
+		opts.trace = isTrace
+	}
+}
+
+// defaultOption default option
+var defaultOption = Option{
+	readTimeout:  3 * time.Second,
+	writeTimeout: 3 * time.Second,
+	trace:        false,
+}
+
+// Server 是整个 oprc 的核心功能
+type Server struct {
+	*Option
+	ln net.Listener
 
 	serviceMap sync.Map //map[string]*service
-	//mu sync.RWMutex
+	mu         sync.RWMutex
 }
 
-func NewServer() *Server {
-	return &Server{}
+// NewServer 实例化 server 对象
+//
+//	s := NewServer(
+//		WithReadTimeout(time.Second),	// 设置读超时
+//		WithWriteTimeout(time.Second),	// 设置写超时
+//		WithTrace(true))	// 开启 trace
+func NewServer(opt ...OptionFn) *Server {
+	options := defaultOption
+	OptionFns(opt).apply(&options)
+
+	return &Server{Option: &options}
 }
 
+// Server 可以启动一个服务端，提供了一个 Dail() 的方法启动
+//
+// 	s := NewServer()
+// 	err := s.Server("tcp", ":9081")
 func (server *Server) Server(network, address string) (err error) {
 	var ln net.Listener
 	ln, err = net.Listen(network, address)
@@ -43,7 +102,12 @@ func (server *Server) Server(network, address string) (err error) {
 	return server.serveListener(ln)
 }
 
+// serveListener 监听客户端连接
 func (server *Server) serveListener(ln net.Listener) error {
+	server.mu.Lock()
+	server.ln = ln
+	server.mu.Unlock()
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -53,13 +117,12 @@ func (server *Server) serveListener(ln net.Listener) error {
 			}
 			return err
 		}
-		// TODO add go
 		go server.serveConn(conn)
 	}
 }
 
+// serveConn 处理连接
 func (server *Server) serveConn(conn net.Conn) {
-	log.Println("rpc##server serveConn")
 	r := bufio.NewReaderSize(conn, 1024)
 
 	for {
@@ -72,18 +135,18 @@ func (server *Server) serveConn(conn net.Conn) {
 		// 获取一个请求
 		request, err := server.readRequest(r)
 		if request == nil {
-			//log.Println("rpc##server: Nil request")
 			break
 		}
-		log.Printf("rpc##server: request:%v err: %v", request, err)
+		if server.trace {
+			log.Printf("rpc##server: request:%v err: %v\n", request, err)
+		}
 		if err != nil {
-			// TODO
 			if err == io.EOF {
-				//log.Infof("client has closed this connection: %s", conn.RemoteAddr().String())
+				log.Printf("rpc##server: client has closed this connection: %s\n", conn.RemoteAddr().String())
 			} else if strings.Contains(err.Error(), "use of closed network connection") {
-				//log.Infof("rpcx: connection %s is closed", conn.RemoteAddr().String())
+				log.Printf("rpc##server: client has closed this connection: %s\n", conn.RemoteAddr().String())
 			} else {
-				//log.Warnf("rpcx: failed to read request: %v", err)
+				log.Printf("rpc##server: client has closed this connection: %s\n", conn.RemoteAddr().String())
 			}
 			continue
 		}
@@ -95,21 +158,32 @@ func (server *Server) serveConn(conn net.Conn) {
 
 		// 处理请求
 		go func() {
-			//defer func() {
-			//	if r := recover(); r != nil {
-			//	}
-			//}()
-			log.Println("rpc: server handler request before")
+			// 捕获异常
+			defer func() {
+				if r := recover(); r != nil {
+					buf := make([]byte, 4096)
+					n := runtime.Stack(buf, false)
+					buf = buf[:n]
+					err := fmt.Errorf("[rpc##server handler request error]: %v, request: %v, stack: %s",
+						r, request, buf)
+					log.Println(err)
+				}
+			}()
 			// 处理请求
 			resp, err := server.handleRequest(request)
-			log.Printf("rpc: server handler request after, resp:%v => err:%v\n", resp, err)
+			if server.trace {
+				log.Printf("rpc##server: handler request after, resp:%v => err:%v\n", resp, err)
+			}
 			if err != nil {
-				log.Printf("rpc: server failed to handle request: %v\n", err)
+				log.Printf("rpc##server failed to handle request: %v\n", err)
+				return
 			}
 			// 响应
 			rst := resp.Encode()
 			_, err = conn.Write(rst)
-			log.Printf("write data to conn\n")
+			if server.trace {
+				log.Println("rpc##server: send data to conn")
+			}
 			if err != nil {
 				log.Println("rpc: server connect write err:", err)
 			}
@@ -128,6 +202,7 @@ func (server *Server) readRequest(r io.Reader) (*protocol.Message, error) {
 	return req, err
 }
 
+// handleRequest 处理从客户端发送的请求，并通过反射机制调用 service.method
 func (server *Server) handleRequest(request *protocol.Message) (resp *protocol.Message, err error) {
 	srv, mType, err := server.findService(request.ServiceMethod)
 	if err != nil {
@@ -190,6 +265,7 @@ func (server *Server) findService(serviceMethod string) (srv *service, mType *me
 	svri, ok := server.serviceMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc#server: can't find service " + serviceName)
+		return
 	}
 
 	srv = svri.(*service)
@@ -200,16 +276,41 @@ func (server *Server) findService(serviceMethod string) (srv *service, mType *me
 	return
 }
 
-// Register service 中满足条件的方法集合，方法有以下条件：
-// Method 必须满足一下条件：
-// 1. 方法可导出
-// 2. 必须包含两个参数，一个参数、一个返回值，并且可被导出
-// 3. 参数和返回值都必须是指针
-// 4. 必须包含一个返回值且是 error 类型
+// Register service 中满足条件的方法集合，Method 必须满足以下条件才能被注册：
+//
+// 	1. 方法可导出
+// 	2. 必须包含两个参数，一个参数、一个返回值，并且可被导出
+// 	3. 参数和返回值都必须是指针
+// 	4. 必须包含一个返回值且是 error 类型
 func (server *Server) Register(rcvr interface{}) error {
-	s := newService(rcvr)
+	s, err := newService(rcvr)
+	if err != nil {
+		return err
+	}
 	if _, loaded := server.serviceMap.LoadOrStore(s.name, s); loaded {
 		return errors.New("rpc: service already defined: " + s.name)
 	}
 	return nil
+}
+
+// Close 关闭 server 连接
+func (server *Server) Close() error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	var err error
+
+	if server.ln != nil {
+		err = server.ln.Close()
+	}
+	return err
+}
+
+// Dail 是快捷启动服务方法，也可以通过以下方式启动：
+//
+//	s := NewServer(WithTrace(true))
+//	s.Server("tcp", ":9089")
+func Dail(network, address string, opts ...OptionFn) error {
+	server := NewServer(opts...)
+	return server.Server(network, address)
 }

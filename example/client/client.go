@@ -19,23 +19,6 @@ func main() {
 	}
 
 	cli := client.NewClient(conn, client.WithIsTrace(false))
-
-	//wg := sync.WaitGroup{}
-	////wg.Add(5)
-	//for i := 0; i < 1; i++ {
-	//	wg.Add(1)
-	//	go func(index int) {
-	//		defer wg.Done()
-	//		args := &Args{
-	//			A: index,
-	//			B: 2,
-	//		}
-	//		var reply int
-	//		cli.Call(context.Background(), "Sum.Add", args, &reply)
-	//		println(args.A, "+", args.B, "=", reply)
-	//	}(i)
-	//}
-	//wg.Wait()
 	args := &Args{
 		A: 12,
 		B: 2,

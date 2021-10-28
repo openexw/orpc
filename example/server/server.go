@@ -7,18 +7,14 @@ import (
 )
 
 func main() {
+	// 实例化 server
 	s := server.NewServer()
+	// 注册 service
 	s.Register(new(testdata.Sum))
 	s.Register(new(testdata.Profile))
+	// 启动 server
 	err := s.Server("tcp", ":8091")
 	if err != nil {
 		log.Fatalln("run orpc err:", err)
 	}
-
-	//reader := strings.NewReader("Hello1212")
-	//type header [12]byte
-	//
-	//h := new(header)
-	//io.ReadFull(reader, []byte(h))
-	//fmt.Printf("%s", h)
 }

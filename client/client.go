@@ -107,6 +107,7 @@ type Client struct {
 
 // NewClient 实例化
 // example：
+//
 // client := NewClient(
 //		WithCompressType(protocol.Gzip),
 //		WithSerializeType(protocol.JSON))
@@ -125,6 +126,7 @@ func NewClient(conn net.Conn, opts ...OptionFn) *Client {
 	return c
 }
 
+// dealResponse 处理从 server 端来的响应
 func (client *Client) dealResponse() {
 	var err error
 	for err == nil {
@@ -242,6 +244,7 @@ func (client *Client) Call(ctx context.Context, serviceMethod string, args, repl
 	return err
 }
 
+// Go 会初始化一个 Call 并发送 Call 到 server
 func (client *Client) Go(ctx context.Context, serviceMethod string, args interface{}, reply interface{}) *Call {
 	// net/rpc 为啥会初始化两次
 	call := &Call{
@@ -252,12 +255,12 @@ func (client *Client) Go(ctx context.Context, serviceMethod string, args interfa
 		Ctx:           ctx,
 	}
 
-	// send
+	// send data to conn
 	client.send(call)
 	return call
 }
 
-// send data to conn
+// send 发送数据到 server
 func (client *Client) send(call *Call) {
 	client.reqMutex.Lock()
 	defer client.reqMutex.Unlock()
@@ -317,11 +320,12 @@ func (client *Client) send(call *Call) {
 	}
 }
 
+// done call done
 func (call *Call) done() {
 	select {
 	case call.Done <- call:
 		//	ok
 	default:
-		log.Println("rpc: discarding Call reply due to insufficient Done chan capacity")
+		log.Println("rpc##client: discarding Call reply due to insufficient Done chan capacity")
 	}
 }

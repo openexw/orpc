@@ -1,7 +1,7 @@
 package codec
 
 import (
-	"github.com/openexw/orpc/codec/testdata"
+	"github.com/openexw/orpc/testdata"
 	"reflect"
 	"testing"
 )
