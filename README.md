@@ -62,9 +62,9 @@
 
 > **Notice**：
 >
-> 详细的 example 可查看 `./example` 中的 demo。
->
-> **运行服务端端**
+> 1. 详细的 example 可查看 `./example` 中的 demo。
+> 2. 请在 Go 1.7 下运行 
+> **运行服务端**
 >
 > ```shel
 > $ go run example/server.go

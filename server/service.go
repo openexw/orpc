@@ -111,7 +111,7 @@ func (srv *service) suitableMethods(typ reflect.Type) map[string]*methodType {
 		mName := m.Name
 
 		// 判断是否可导出
-		if !m.IsExported() {
+		if m.PkgPath != "" {
 			continue
 		}
 		// 1. 方法必须包含 receiver, *args, *reply.
