@@ -19,13 +19,6 @@ func main() {
 	}
 
 	cli := client.NewClient(conn, client.WithIsTrace(false))
-	args := &Args{
-		A: 12,
-		B: 2,
-	}
-	var reply int
-	cli.Call(context.Background(), "Sum.Add", args, &reply)
-	println(args.A, "+", args.B, "=", reply)
 
 	profileArgs := &testdata.Profile{
 		Name: "Jack",
