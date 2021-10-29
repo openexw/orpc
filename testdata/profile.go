@@ -1,7 +1,5 @@
 package testdata
 
-import "log"
-
 type Profile struct {
 	Id   int64  `json:"id"`
 	Name string `json:"name"`
@@ -31,6 +29,5 @@ func (p *Profile) AddProfile(args *AddProfileArgs, reply *Profile) error {
 		Age:  args.Age,
 		Sex:  args.Sex,
 	}
-	log.Printf("exec， reply:%v", reply)
 	return nil
 }

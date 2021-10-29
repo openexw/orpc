@@ -19,6 +19,10 @@ var (
 	ErrServerClosed = errors.New("rpc#server: Server closed")
 )
 
+const (
+	ReaderBufSize = 1024
+)
+
 type Option struct {
 	readTimeout  time.Duration
 	writeTimeout time.Duration
@@ -61,8 +65,8 @@ func WithTrace(isTrace bool) OptionFn {
 
 // defaultOption default option
 var defaultOption = Option{
-	readTimeout:  3 * time.Second,
-	writeTimeout: 3 * time.Second,
+	readTimeout:  300 * time.Second,
+	writeTimeout: 300 * time.Second,
 	trace:        false,
 }
 
@@ -123,8 +127,9 @@ func (server *Server) serveListener(ln net.Listener) error {
 
 // serveConn 处理连接
 func (server *Server) serveConn(conn net.Conn) {
-	r := bufio.NewReaderSize(conn, 1024)
-
+	r := bufio.NewReaderSize(conn, ReaderBufSize)
+	// TODO ..
+	wg := sync.WaitGroup{}
 	for {
 		t := time.Now()
 		// 设置 timeout
@@ -134,9 +139,6 @@ func (server *Server) serveConn(conn net.Conn) {
 
 		// 获取一个请求
 		request, err := server.readRequest(r)
-		if request == nil {
-			break
-		}
 		if server.trace {
 			log.Printf("rpc##server: request:%v err: %v\n", request, err)
 		}
@@ -148,18 +150,19 @@ func (server *Server) serveConn(conn net.Conn) {
 			} else {
 				log.Printf("rpc##server: client has closed this connection: %s\n", conn.RemoteAddr().String())
 			}
-			continue
+			return
 		}
 
 		// 设置写超时
 		if server.writeTimeout != 0 {
 			_ = conn.SetWriteDeadline(t.Add(server.writeTimeout))
 		}
-
-		// 处理请求
+		wg.Add(1)
+		//处理请求
 		go func() {
 			// 捕获异常
 			defer func() {
+				wg.Done()
 				if r := recover(); r != nil {
 					buf := make([]byte, 4096)
 					n := runtime.Stack(buf, false)
@@ -172,7 +175,7 @@ func (server *Server) serveConn(conn net.Conn) {
 			// 处理请求
 			resp, err := server.handleRequest(request)
 			if server.trace {
-				log.Printf("rpc##server: handler request after, resp:%v => err:%v\n", resp, err)
+				log.Printf("rpc##server: handler request after, resp:%v => err:%v from conn: %s\n", resp, err, conn.RemoteAddr().String())
 			}
 			if err != nil {
 				log.Printf("rpc##server failed to handle request: %v\n", err)
@@ -195,10 +198,10 @@ func (server *Server) serveConn(conn net.Conn) {
 func (server *Server) readRequest(r io.Reader) (*protocol.Message, error) {
 	req := protocol.NewMessage()
 	err := req.Decode(r)
-	// 获取到到一个请求
-	if len(req.Payload) == 0 {
-		return nil, err
+	if server.trace {
+		log.Printf("readRequest header %v, ServiceMethod :%s, Payload:%s. error:%v", req.Header, req.ServiceMethod, req.Payload, err)
 	}
+	// 获取到到一个请求
 	return req, err
 }
 
@@ -228,7 +231,9 @@ func (server *Server) handleRequest(request *protocol.Message) (resp *protocol.M
 	if err != nil {
 		return
 	}
-	log.Printf("handleRequest: %v", argv)
+	if server.trace {
+		log.Printf("rpc##server: get a service %+v for an request %+v", srv, argv)
+	}
 
 	// 处理返回值
 	reply := mType.newReply()
@@ -240,7 +245,9 @@ func (server *Server) handleRequest(request *protocol.Message) (resp *protocol.M
 		err = srv.call(mType, arg, reply)
 	}
 	replyv := reply.Interface()
-	log.Printf("rpc##server: reply = %v", replyv)
+	if server.trace {
+		log.Printf("rpc##server: reply = %v", replyv)
+	}
 	if err != nil {
 		return nil, err
 	}

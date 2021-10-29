@@ -51,7 +51,7 @@
 ## TODO
 
 - [ ] feat：负载均衡功能
-- [ ] feate：支持 HTTP、HTTPS、WS 等协议
+- [ ] feat：支持 HTTP、HTTPS、WS 等协议
 - [ ] feat：分布式链路最终功能
 - [ ] feat：服务发现模块
 - [ ] feat：新增插件机制

@@ -93,7 +93,6 @@ func (srv *service) call(mType *methodType, argv, replyv reflect.Value) error {
 	if errInter := returnVals[0].Interface(); errInter != nil {
 		return errInter.(error)
 	}
-	log.Printf("internal data:%v", replyv.Interface())
 	return nil
 }
 

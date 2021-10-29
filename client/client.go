@@ -254,7 +254,6 @@ func (client *Client) Go(ctx context.Context, serviceMethod string, args interfa
 		Done:          make(chan *Call, 1),
 		Ctx:           ctx,
 	}
-
 	// send data to conn
 	client.send(call)
 	return call
@@ -300,13 +299,10 @@ func (client *Client) send(call *Call) {
 		return
 	}
 	req.Payload = data
-	if client.isTrace {
-		log.Printf("rpc##client payload: %v", data)
-	}
 	// 编码参数
 	reqData := req.Encode()
 	if client.isTrace {
-		log.Printf("rpc##client req:%v, client send data", req)
+		log.Printf("rpc##client req: header is %v, ServiceMethod is %s, paylod is %s,  client send data\n", req.Header, req.ServiceMethod, req.Payload)
 	}
 	// step4: 发送数据
 	_, err = client.conn.Write(reqData)

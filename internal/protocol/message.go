@@ -3,6 +3,7 @@ package protocol
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -165,19 +166,24 @@ func (m *Message) Encode() []byte {
 	binary.BigEndian.PutUint32(data[payloadStart:payloadStart+PayloadLen], uint32(payloadLen))
 	// 写入数据
 	copy(data[payloadStart+PayloadLen:], m.Payload)
-	return data
+	return data[:HeaderLen+DataLen+dataLen]
 }
 
 func (m *Message) Decode(r io.Reader) error {
+
 	// step1：解析 header
-	_, err := io.ReadFull(r, m.Header[:])
+	// TODO 没有读取到数据这会返回 IO.EOF
+	_, err := io.ReadFull(r, m.Header[:1])
 	if err != nil {
 		return err
 	}
-	// 校验 MagicNumber
 	if !m.Header.CheckMagicNumber() {
-		//log.Printf("rpc##server message.Decode err:%s", ErrMagicNumber.Error()+"; value:"+string(m.Header[0]))
-		return ErrMagicNumber
+		return fmt.Errorf("wrong magic number: %v", m.Header[0])
+	}
+
+	_, err = io.ReadFull(r, m.Header[1:])
+	if err != nil {
+		return err
 	}
 	// step2: 获取 data
 	// 获取 dataLen

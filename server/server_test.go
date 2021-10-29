@@ -27,6 +27,20 @@ func TestServer_readRequest(t *testing.T) {
 		t.Error("request is nil")
 	}
 }
+func TestServer_batchReadRequest(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		md := testdata.BuildMessageData()
+		buf := bytes.NewBuffer(md)
+		r := bufio.NewReaderSize(buf, 1024)
+		request, err := s.readRequest(r)
+		if err != nil {
+			t.Error("read request error:", err)
+		}
+		if request == nil {
+			t.Error("request is nil")
+		}
+	}
+}
 
 func TestServer_Register(t *testing.T) {
 	s.Register(new(testdata.Sum))
